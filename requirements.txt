@@ -1,0 +1,30 @@
+# ── Web Framework ─────────────────────────
+flask
+waitress
+
+# ── Environment Variables ─────────────────
+python-dotenv
+
+# ── LlamaIndex Core ───────────────────────
+llama-index-core
+llama-index-embeddings-openai
+llama-index-vector-stores-pinecone==0.8.0
+llama-index-readers-file
+
+# ── Pinecone ──────────────────────────────
+pinecone>=7.0.0,<8.0.0
+
+# ── LangChain Agent ───────────────────────
+langchain
+langchain-openai
+langchain-community
+
+# ── OpenAI ────────────────────────────────
+openai
+tiktoken
+
+# ── Data Handling ─────────────────────────
+pandas
+
+# ── HTTP Requests (for MCP tools) ─────────
+requests
