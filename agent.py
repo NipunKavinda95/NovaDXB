@@ -147,11 +147,19 @@ def initialize_agent():
     ]
 
     # Create ReAct agent — LangGraph style
-    agent_executor = create_react_agent(
-        model=llm,
-        tools=tools,
-        state_modifier=SystemMessage(content=SYSTEM_PROMPT) 
-    )
+    try:
+        agent_executor = create_react_agent(
+            model=llm,
+            tools=tools,
+            prompt=SystemMessage(content=SYSTEM_PROMPT)
+        )
+    except TypeError:
+        agent_executor = create_react_agent(
+            model=llm,
+            tools=tools,
+            state_modifier=SystemMessage(content=SYSTEM_PROMPT)
+        )
+
 
     print("✅ NovaDXB Agent ready")
     return agent_executor
