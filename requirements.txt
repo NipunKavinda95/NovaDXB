@@ -1,5 +1,6 @@
 # ── Web Framework ─────────────────────────
 flask
+flask-cors
 waitress
 
 # ── Environment Variables ─────────────────
