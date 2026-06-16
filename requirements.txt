@@ -20,7 +20,7 @@ pinecone>=7.0.0,<8.0.0
 langchain
 langchain-openai
 langchain-community
-langgraph
+langgraph==1.2.4
 langchain-core
 
 # ── OpenAI ────────────────────────────────
