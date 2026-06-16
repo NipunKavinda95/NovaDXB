@@ -99,6 +99,68 @@ def dining_recommender(requirements: str) -> str:
     )
     return query_rag(prompt)
 
+@tool
+def currency_converter(query: str) -> str:
+    """Convert an amount between AED (UAE Dirham) and major
+    tourist currencies, or explain Dubai money matters.
+    Use when user asks about currency conversion, exchange rates,
+    or 'how much is X AED in my currency'.
+    Input: amount and currency, e.g. '500 AED to USD' or '200 USD to AED'."""
+ 
+    # Fixed approximate rates relative to 1 AED (AED is USD-pegged, very stable)
+    rates_per_aed = {
+        "USD": 0.272, "EUR": 0.250, "GBP": 0.214, "INR": 22.85,
+        "PKR": 75.80, "PHP": 15.40, "CNY": 1.97, "SAR": 1.02,
+        "AED": 1.0,
+    }
+ 
+    import re as _re
+    match = _re.search(
+        r"(\d+(?:\.\d+)?)\s*([A-Za-z]{3})\s*(?:to|in)?\s*([A-Za-z]{3})?",
+        query, _re.IGNORECASE
+    )
+ 
+    if not match:
+        return (
+            "I can convert between AED and major currencies (USD, EUR, GBP, "
+            "INR, PKR, PHP, CNY, SAR). Try asking like '500 AED to USD'."
+        )
+ 
+    amount = float(match.group(1))
+    from_cur = match.group(2).upper()
+    to_cur = (match.group(3) or "AED").upper()
+ 
+    if from_cur not in rates_per_aed or to_cur not in rates_per_aed:
+        return (
+            f"I support AED conversions with USD, EUR, GBP, INR, PKR, PHP, "
+            f"CNY and SAR. I don't have a fixed rate for {from_cur} or {to_cur} — "
+            f"please check a live exchange rate for that currency."
+        )
+ 
+    # Convert from_cur -> AED -> to_cur
+    amount_in_aed = amount / rates_per_aed[from_cur] if from_cur != "AED" else amount
+    result = amount_in_aed * rates_per_aed[to_cur]
+ 
+    return (
+        f"{amount:.2f} {from_cur} is approximately {result:.2f} {to_cur} "
+        f"(AED is pegged to USD at a fixed rate, so this stays very stable). "
+        f"Note: exchange houses in Dubai typically offer 3-5% better rates "
+        f"than airport counters."
+    )
+ 
+ 
+@tool
+def weather_advisor(query: str) -> str:
+    """Give weather expectations and best-time-to-visit advice for Dubai.
+    Use when user asks about weather, climate, temperature, what to pack,
+    or the best month/season to visit.
+    Input: a month, season, or general weather question."""
+    prompt = (
+        f"Based on Dubai's seasonal weather patterns, answer this: {query}. "
+        "Include expected temperature range, humidity, and what to pack "
+        "if relevant. Mention if it falls in peak, shoulder or low season."
+    )
+    return query_rag(prompt)
 
 # ─────────────────────────────────────────
 # SYSTEM PROMPT
