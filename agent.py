@@ -7,9 +7,10 @@ import os
 from dotenv import load_dotenv
 
 # LangChain 1.3.4 correct imports
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI        
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import SystemMessage
 
 # RAG engine
 from rag_engine import query_rag
@@ -149,7 +150,7 @@ def initialize_agent():
     agent_executor = create_react_agent(
         model=llm,
         tools=tools,
-        prompt=SYSTEM_PROMPT
+        state_modifier=SystemMessage(content=SYSTEM_PROMPT) 
     )
 
     print("✅ NovaDXB Agent ready")
