@@ -17,6 +17,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.llms.openai import OpenAI
 
 # Pinecone
 from pinecone import Pinecone
@@ -57,12 +58,17 @@ def get_pinecone_index():
 # ─────────────────────────────────────────
 # STEP 2 — Configure LlamaIndex Settings
 # ─────────────────────────────────────────
-
+API_KEY = os.environ.get("OPENAI_API_KEY")
 def configure_settings():
     """Set global LlamaIndex embedding and LLM settings."""
     Settings.embed_model = OpenAIEmbedding(
         model=EMBED_MODEL,
-        api_key=os.environ.get("OPENAI_API_KEY")
+        api_key=API_KEY
+    )
+
+    Settings.llm = OpenAI(                              # ← add this block
+        model=LLM_MODEL,
+        api_key=API_KEY
     )
     Settings.chunk_size    = CHUNK_SIZE
     Settings.chunk_overlap = CHUNK_OVERLAP
