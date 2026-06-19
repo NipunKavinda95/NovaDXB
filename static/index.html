@@ -68,6 +68,10 @@
             border-radius: 12px;
             font-size: 14px;
             line-height: 1.6;
+        }
+
+        .message.user,
+        .message.thinking {
             white-space: pre-wrap;
         }
 
@@ -89,6 +93,86 @@
             margin-bottom: 6px;
             font-weight: bold;
             letter-spacing: 1px;
+        }
+
+        /* ── Markdown rendering inside assistant messages ── */
+        .message.assistant h1,
+        .message.assistant h2,
+        .message.assistant h3 {
+            color: #D4AF37;
+            margin: 14px 0 8px;
+            line-height: 1.4;
+        }
+
+        .message.assistant h1 {
+            font-size: 18px;
+        }
+
+        .message.assistant h2 {
+            font-size: 16px;
+        }
+
+        .message.assistant h3 {
+            font-size: 14px;
+        }
+
+        .message.assistant h1:first-child,
+        .message.assistant h2:first-child,
+        .message.assistant h3:first-child {
+            margin-top: 0;
+        }
+
+        .message.assistant p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .message.assistant p:first-child {
+            margin-top: 0;
+        }
+
+        .message.assistant strong {
+            color: #00D4FF;
+            font-weight: bold;
+        }
+
+        .message.assistant em {
+            color: #A0B4D0;
+            font-style: italic;
+        }
+
+        .message.assistant ul,
+        .message.assistant ol {
+            margin: 8px 0 8px 20px;
+            line-height: 1.7;
+        }
+
+        .message.assistant li {
+            margin: 4px 0;
+        }
+
+        .message.assistant li::marker {
+            color: #D4AF37;
+        }
+
+        .message.assistant hr {
+            border: none;
+            border-top: 1px solid #1E3A5F;
+            margin: 14px 0;
+        }
+
+        .message.assistant code {
+            background: #0A0F2C;
+            border: 1px solid #1E3A5F;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #00D4FF;
+        }
+
+        .message.assistant a {
+            color: #00D4FF;
+            text-decoration: underline;
         }
 
         .message.thinking {
@@ -175,6 +259,7 @@
             color: #D4AF37;
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 </head>
 
 <body>
@@ -235,7 +320,9 @@
             const div = document.createElement('div');
             div.className = `message ${role}`;
             if (role === 'assistant') {
-                div.innerHTML = `<div class="name">✦ NOVADXB</div>${text}`;
+                // Parse markdown (headers, bold, lists, etc.) into real HTML
+                const rendered = marked.parse(text);
+                div.innerHTML = `<div class="name">✦ NOVADXB</div>${rendered}`;
             } else {
                 div.textContent = text;
             }
