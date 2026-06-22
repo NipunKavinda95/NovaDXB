@@ -28,7 +28,7 @@ load_dotenv()
 
 # Import RAG + Agent
 from rag_engine import initialize_rag
-from agent import initialize_agent, query_agent
+from agent import initialize_agent, query_agent, extract_itinerary_json
 
 # ─────────────────────────────────────────
 # SECRET_KEY — required, no hardcoded fallback
@@ -264,10 +264,17 @@ def chat():
         # ── Check cache before calling the agent ──
         cached = get_cached_response(message)
         if cached:
+            cached_itinerary = None
+            try:
+                cached_itinerary = extract_itinerary_json(cached)
+            except Exception as e:
+                logger.warning(f"Cached itinerary extraction failed silently: {e}")
+
             return jsonify({
-                "status":   "success",
-                "response": cached,
-                "cached":   True
+                "status":    "success",
+                "response":  cached,
+                "itinerary": cached_itinerary,
+                "cached":    True
             })
 
         # ── Agent response ────────────────
@@ -276,9 +283,17 @@ def chat():
         # ── Cache successful response ──────
         set_cached_response(message, response)
 
+        # ── Extract structured itinerary for side panel (if relevant) ──
+        itinerary = None
+        try:
+            itinerary = extract_itinerary_json(response)
+        except Exception as e:
+            logger.warning(f"Itinerary extraction failed silently: {e}")
+
         return jsonify({
-            "status":   "success",
-            "response": response
+            "status":    "success",
+            "response":  response,
+            "itinerary": itinerary
         })
 
     except Exception as e:

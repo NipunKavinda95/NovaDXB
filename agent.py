@@ -205,7 +205,9 @@ def initialize_agent():
         itinerary_builder,
         budget_estimator,
         area_recommender,
-        dining_recommender
+        dining_recommender,
+        currency_converter,
+        weather_advisor
     ]
 
     # Create ReAct agent — LangGraph style
@@ -251,6 +253,91 @@ def query_agent(user_message: str) -> str:
     except Exception as e:
         print(f"Agent error: {e}")
         return f"Sorry, I encountered an error: {str(e)}"
+
+
+# ─────────────────────────────────────────
+# ITINERARY EXTRACTION — for side panel display
+# Lightweight follow-up call, only runs when relevant
+# ─────────────────────────────────────────
+
+import json
+
+_extraction_llm = None
+
+
+def _get_extraction_llm():
+    """Lazy-init a cheap, fast LLM instance just for JSON extraction."""
+    global _extraction_llm
+    if _extraction_llm is None:
+        _extraction_llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0,
+            max_tokens=600,
+            openai_api_key=os.environ.get("OPENAI_API_KEY")
+        )
+    return _extraction_llm
+
+
+def extract_itinerary_json(agent_response: str):
+    """
+    Given the agent's chat response, try to extract a structured
+    day-by-day itinerary as JSON for the UI side panel.
+    Returns None if the response doesn't contain itinerary content
+    (e.g. it was a currency or weather question).
+    """
+    # Quick heuristic — skip the extra API call entirely if response
+    # clearly isn't an itinerary (saves cost and latency)
+    lowered = agent_response.lower()
+    if "day 1" not in lowered and "day1" not in lowered:
+        return None
+
+    llm = _get_extraction_llm()
+
+    extraction_prompt = f"""Extract a structured itinerary from this text.
+Return ONLY valid JSON, no other text, no markdown code fences.
+
+If the text contains a day-by-day Dubai itinerary, return this exact shape:
+{{
+  "has_itinerary": true,
+  "days": [
+    {{
+      "day_number": 1,
+      "title": "short theme for the day",
+      "activities": ["short activity 1", "short activity 2", "short activity 3"],
+      "estimated_cost": "AED XXX"
+    }}
+  ],
+  "total_cost": "AED XXX"
+}}
+
+If there is no clear day-by-day itinerary in the text, return:
+{{"has_itinerary": false}}
+
+Text to extract from:
+{agent_response}
+"""
+
+    try:
+        result = llm.invoke(extraction_prompt)
+        raw = result.content.strip()
+
+        # Strip markdown code fences if the model added them anyway
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
+        data = json.loads(raw)
+
+        if not data.get("has_itinerary"):
+            return None
+
+        return data
+
+    except Exception as e:
+        print(f"Itinerary extraction skipped: {e}")
+        return None
 
 
 # ─────────────────────────────────────────
