@@ -403,13 +403,36 @@
             cursor: not-allowed;
         }
 
-        /* ── Suggestions ── */
+        /* ── Suggestions ──
+           Default state: full row, wraps, used before the first message.
+           .compact state: collapses into a single-line, horizontally
+           scrollable strip once the conversation has started, so it
+           never disappears but also never crowds the chat. */
         #suggestions {
             padding: 12px 24px;
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
             background: #0A0F2C;
+            border-bottom: 1px solid #1E3A5F;
+            flex-shrink: 0;
+            transition: padding 0.2s ease;
+        }
+
+        #suggestions.compact {
+            padding: 8px 24px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
+        #suggestions.compact::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        #suggestions.compact::-webkit-scrollbar-thumb {
+            background: #1E3A5F;
+            border-radius: 4px;
         }
 
         .suggestion {
@@ -420,6 +443,15 @@
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: border-color 0.15s, color 0.15s, padding 0.2s, font-size 0.2s;
+        }
+
+        #suggestions.compact .suggestion {
+            padding: 5px 12px;
+            font-size: 11px;
+            color: #6B7280;
         }
 
         .suggestion:hover {
@@ -457,12 +489,21 @@
                 <span>Explore Dubai. Intelligently.</span>
             </div>
         </div>
-        <a href="/" style="font-size:12px;color:#6B7280;text-decoration:none;white-space:nowrap;
-           padding:6px 14px;border:1px solid #1E3A5F;border-radius:20px;transition:color 0.2s,border-color 0.2s"
-            onmouseover="this.style.color='#00D4FF';this.style.borderColor='#00D4FF'"
-            onmouseout="this.style.color='#6B7280';this.style.borderColor='#1E3A5F'">
-            ← Home
-        </a>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+            <button id="new-chat-btn" onclick="startNewChat()" title="Clear this conversation and start fresh" style="font-size:12px;color:#A0B4D0;background:transparent;text-decoration:none;white-space:nowrap;
+               padding:6px 14px;border:1px solid #1E3A5F;border-radius:20px;cursor:pointer;
+               transition:color 0.2s,border-color 0.2s;font-family:inherit"
+                onmouseover="this.style.color='#D4AF37';this.style.borderColor='#D4AF37'"
+                onmouseout="this.style.color='#A0B4D0';this.style.borderColor='#1E3A5F'">
+                ↻ New Chat
+            </button>
+            <a href="/" style="font-size:12px;color:#6B7280;text-decoration:none;white-space:nowrap;
+               padding:6px 14px;border:1px solid #1E3A5F;border-radius:20px;transition:color 0.2s,border-color 0.2s"
+                onmouseover="this.style.color='#00D4FF';this.style.borderColor='#00D4FF'"
+                onmouseout="this.style.color='#6B7280';this.style.borderColor='#1E3A5F'">
+                ← Home
+            </a>
+        </div>
     </header>
 
     <!-- Main split layout -->
@@ -506,7 +547,7 @@
         <div id="side-panel">
             <div class="side-panel-header">✦ Your Dubai Itinerary</div>
             <div id="side-content">
-                <div class="side-empty">
+                <div class="side-empty" id="side-empty-state">
                     <div class="side-empty-icon">🗺️</div>
                     <div class="side-empty-text">
                         Ask NovaDXB to plan your trip and your itinerary will appear here — day by day.
@@ -523,6 +564,29 @@
         const sendBtn = document.getElementById('send-btn');
         const statusBar = document.getElementById('status-bar');
         const suggestions = document.getElementById('suggestions');
+        const sideContent = document.getElementById('side-content');
+
+        // The exact markup the side panel starts with — reused on reset
+        // so "New Chat" restores pixel-identical empty state.
+        const SIDE_EMPTY_HTML = `
+            <div class="side-empty" id="side-empty-state">
+                <div class="side-empty-icon">🗺️</div>
+                <div class="side-empty-text">
+                    Ask NovaDXB to plan your trip and your itinerary will appear here — day by day.
+                </div>
+            </div>`;
+
+        // The exact welcome message the chat starts with — reused on reset.
+        const WELCOME_HTML = `
+            <div class="message assistant">
+                <div class="name">✦ NOVADXB</div>
+                Welcome! I'm your personal Dubai AI Concierge. I can help you plan itineraries, find the best areas to stay,
+                recommend restaurants, estimate budgets, and answer anything about Dubai. How can I help you today?
+            </div>`;
+
+        // Tracks whether the user has sent at least one message in the
+        // current conversation. Drives the suggestions bar's compact mode.
+        let conversationStarted = false;
 
         function handleKey(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -553,8 +617,6 @@
 
         // ── Side panel: render itinerary cards ──────────────────
         function renderItinerary(itinerary) {
-            const sideContent = document.getElementById('side-content');
-
             if (!itinerary || !itinerary.has_itinerary || !itinerary.days) {
                 return; // Leave panel as-is for non-itinerary responses
             }
@@ -587,12 +649,43 @@
             sideContent.innerHTML = html;
         }
 
+        // ── Side panel: clear back to its empty placeholder ──────
+        // Called on "New Chat" so a leftover itinerary from a previous,
+        // unrelated topic never lingers next to a fresh conversation.
+        function resetSidePanel() {
+            sideContent.innerHTML = SIDE_EMPTY_HTML;
+        }
+
+        // ── Start a brand new conversation ───────────────────────
+        // Clears the chat log back to the welcome message, clears the
+        // side panel, restores the suggestions row to its full (non-compact)
+        // state, and resets the input box. This is the explicit "start over"
+        // action returning users were missing.
+        function startNewChat() {
+            chatContainer.innerHTML = WELCOME_HTML;
+            resetSidePanel();
+
+            suggestions.classList.remove('compact');
+            suggestions.style.display = 'flex';
+
+            userInput.value = '';
+            statusBar.textContent = '⚡ AI Concierge ready — ask me anything about Dubai';
+            conversationStarted = false;
+
+            userInput.focus();
+        }
+
         async function sendMessage() {
             const message = userInput.value.trim();
             if (!message) return;
 
-            // Hide suggestions after first message
-            suggestions.style.display = 'none';
+            // Collapse suggestions into a compact strip after the first
+            // message — kept visible (never display:none) so returning
+            // users always have quick prompts on hand.
+            if (!conversationStarted) {
+                conversationStarted = true;
+                suggestions.classList.add('compact');
+            }
 
             // Add user message
             addMessage(message, 'user');
@@ -620,7 +713,12 @@
                 if (data.status === 'success') {
                     addMessage(data.response, 'assistant');
                     statusBar.textContent = '⚡ AI Concierge ready — ask me anything about Dubai';
-                    // Render itinerary cards in side panel if itinerary data returned
+                    // Render itinerary cards in side panel if itinerary data
+                    // returned. We deliberately do NOT auto-clear the panel
+                    // when a reply has no itinerary — follow-up questions
+                    // ("what about food?", "best time to go?") are normal
+                    // and shouldn't wipe out an itinerary still on screen.
+                    // Clearing is left to the explicit "New Chat" action.
                     if (data.itinerary) {
                         renderItinerary(data.itinerary);
                     }

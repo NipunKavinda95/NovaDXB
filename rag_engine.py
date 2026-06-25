@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────
 # NovaDXB — rag_engine.py
-# RAG Pipeline — Phase 1 Simple Skeleton
+# RAG Pipeline — LlamaIndex + Pinecone
 # ─────────────────────────────────────────
 
 import os
@@ -16,7 +16,6 @@ from llama_index.core import (
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.pinecone import PineconeVectorStore
-from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.llms.openai import OpenAI
 
 # Pinecone
@@ -59,6 +58,7 @@ def get_pinecone_index():
 # STEP 2 — Configure LlamaIndex Settings
 # ─────────────────────────────────────────
 API_KEY = os.environ.get("OPENAI_API_KEY")
+
 def configure_settings():
     """Set global LlamaIndex embedding and LLM settings."""
     Settings.embed_model = OpenAIEmbedding(
@@ -66,7 +66,7 @@ def configure_settings():
         api_key=API_KEY
     )
 
-    Settings.llm = OpenAI(                              # ← add this block
+    Settings.llm = OpenAI(
         model=LLM_MODEL,
         api_key=API_KEY
     )
@@ -211,8 +211,7 @@ def initialize_rag():
     configure_settings()
     pinecone_index = get_pinecone_index()
 
-    # TODO: Set INGEST=true in .env to re-ingest KB
-    # Normal startup just loads existing index
+    # Normal startup loads existing index; set INGEST=true in .env to re-ingest
     if os.environ.get("INGEST", "false").lower() == "true":
         index = ingest_knowledge_base(pinecone_index)
     else:
@@ -241,16 +240,5 @@ def query_rag(user_message: str) -> str:
         return str(response)
 
     except Exception as e:
-        print(f"RAG query error: {e}")
+        # error logged by caller
         return f"Sorry, I encountered an error: {str(e)}"
-
-
-# ─────────────────────────────────────────
-# QUICK TEST — run directly to verify
-# ─────────────────────────────────────────
-
-if __name__ == "__main__":
-    initialize_rag()
-    test_query = "What are the best areas to stay in Dubai for a couple?"
-    print(f"\n🔍 Test Query: {test_query}")
-    print(f"💬 Response: {query_rag(test_query)}")
