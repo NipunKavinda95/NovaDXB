@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────
 # NovaDXB — app.py
-# Flask App — Phase 2 (Agent connected)
+# Flask REST API — Security, Rate Limiting, Caching
 # ─────────────────────────────────────────
 
 import os
@@ -43,8 +43,6 @@ if not SECRET_KEY:
 
 # ─────────────────────────────────────────
 # CORS — restricted to known frontend origins
-# Add your HF Space URL once deployed, comma-separated
-# for multiple origins (e.g. local dev + production)
 # ─────────────────────────────────────────
 
 ALLOWED_ORIGINS = os.environ.get(
@@ -62,7 +60,10 @@ app.config["SECRET_KEY"] = SECRET_KEY
 
 CORS(
     app,
-    resources={r"/chat": {"origins": ALLOWED_ORIGINS}, r"/health": {"origins": ALLOWED_ORIGINS}},
+    resources={
+        r"/chat":   {"origins": ALLOWED_ORIGINS},
+        r"/health": {"origins": ALLOWED_ORIGINS},
+    },
     supports_credentials=True
 )
 
@@ -159,6 +160,7 @@ def set_cached_response(message: str, response: str):
         _response_cache.pop(oldest_key, None)
     _response_cache[message.lower().strip()] = response
 
+
 # ─────────────────────────────────────────
 # STARTUP — Initialize RAG then Agent
 # Background thread — app starts instantly
@@ -190,6 +192,7 @@ threading.Thread(target=startup, daemon=True).start()
 @app.route("/")
 def landing():
     return render_template("landing.html")
+
 
 @app.route("/app")
 def chat_app():

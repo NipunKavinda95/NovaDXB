@@ -1,19 +1,21 @@
 # ─────────────────────────────────────────
 # NovaDXB — agent.py
-# LangGraph ReAct Agent — LangChain 1.3.4
+# LangGraph ReAct Agent + 7 MCP Tools
 # ─────────────────────────────────────────
 
 import os
 from dotenv import load_dotenv
 
 # LangChain 1.3.4 correct imports
-from langchain_openai import ChatOpenAI        
+from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import SystemMessage
 
 # RAG engine
 from rag_engine import query_rag
+
+import json
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -178,7 +180,13 @@ Your personality:
 - Be specific and actionable, never vague
 
 Always use your tools to get accurate Dubai information.
-Never answer from general knowledge alone."""
+Never answer from general knowledge alone.
+
+When a request spans multiple sub-topics (e.g. several areas,
+cuisines, or days), call the relevant tool once with all of those
+sub-topics combined into a single input, rather than calling it
+separately for each one. Synthesize variety from one tool response
+instead of making repeated calls to the same tool in one turn."""
 
 
 # ─────────────────────────────────────────
@@ -207,10 +215,10 @@ def initialize_agent():
         area_recommender,
         dining_recommender,
         currency_converter,
-        weather_advisor
+        weather_advisor,
     ]
 
-    # Create ReAct agent — LangGraph style
+    # Create ReAct agent
     try:
         agent_executor = create_react_agent(
             model=llm,
@@ -223,7 +231,6 @@ def initialize_agent():
             tools=tools,
             state_modifier=SystemMessage(content=SYSTEM_PROMPT)
         )
-
 
     print("✅ NovaDXB Agent ready")
     return agent_executor
@@ -251,16 +258,13 @@ def query_agent(user_message: str) -> str:
         return "Sorry, I could not process that."
 
     except Exception as e:
-        print(f"Agent error: {e}")
-        return f"Sorry, I encountered an error: {str(e)}"
+        return "Sorry, something went wrong. Please try again."
 
 
 # ─────────────────────────────────────────
 # ITINERARY EXTRACTION — for side panel display
 # Lightweight follow-up call, only runs when relevant
 # ─────────────────────────────────────────
-
-import json
 
 _extraction_llm = None
 
@@ -336,20 +340,4 @@ Text to extract from:
         return data
 
     except Exception as e:
-        print(f"Itinerary extraction skipped: {e}")
         return None
-
-
-# ─────────────────────────────────────────
-# QUICK TEST
-# ─────────────────────────────────────────
-
-if __name__ == "__main__":
-    from rag_engine import initialize_rag
-
-    initialize_rag()
-    initialize_agent()
-
-    test = "Plan a 3 day Dubai trip for a couple on mid budget"
-    print(f"\n🔍 Test: {test}")
-    print(f"💬 Response:\n{query_agent(test)}")
