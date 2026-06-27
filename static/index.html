@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NovaDXB — Dubai AI Concierge</title>
+    <!-- Leaflet (OpenStreetMap) — free, no API key required -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         * {
             box-sizing: border-box;
@@ -237,6 +239,49 @@
             left: 0;
             color: #D4AF37;
             font-size: 10px;
+        }
+
+        /* ── Itinerary map (per day-card) ── */
+        .day-map-toggle {
+            margin-top: 10px;
+            background: transparent;
+            border: 1px solid #1E3A5F;
+            color: #00D4FF;
+            font-size: 11px;
+            padding: 5px 10px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .day-map-toggle:hover {
+            border-color: #00D4FF;
+        }
+
+        .day-map {
+            margin-top: 10px;
+            height: 220px;
+            border-radius: 10px;
+            border: 1px solid #1E3A5F;
+            overflow: hidden;
+            display: none;
+        }
+
+        .day-map.visible {
+            display: block;
+        }
+
+        /* Leaflet's default popup/control styling clashes with the dark
+           theme otherwise — keep this minimal override scoped to our maps. */
+        .day-map .leaflet-popup-content-wrapper {
+            background: #111827;
+            color: #F0F4FF;
+            border: 1px solid #D4AF37;
+        }
+
+        .day-map .leaflet-popup-tip {
+            background: #111827;
         }
 
         .total-cost-bar {
@@ -558,6 +603,9 @@
 
     </div>
 
+    <!-- Leaflet (OpenStreetMap) — free, no API key required -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
     <script>
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
@@ -587,6 +635,141 @@
         // Tracks whether the user has sent at least one message in the
         // current conversation. Drives the suggestions bar's compact mode.
         let conversationStarted = false;
+
+        // ── Dubai landmark/area coordinates — for the itinerary map ──
+        // Static lookup, no geocoding API call. Names chosen to overlap
+        // with the same real-place vocabulary used elsewhere in the
+        // project's evaluation reference data, so "is this a real,
+        // recognizable Dubai place" stays consistent across the app.
+        // NOT exhaustive — an activity that doesn't mention one of these
+        // simply won't get a pin. Add more entries here over time as
+        // gaps are noticed; this never requires a backend change.
+        const DUBAI_PLACES = [
+            ["Burj Khalifa", 25.1972, 55.2744],
+            ["Dubai Mall", 25.1972, 55.2796],
+            ["Dubai Fountain", 25.1958, 55.2773],
+            ["Burj Al Arab", 25.1412, 55.1853],
+            ["Palm Jumeirah", 25.1124, 55.1390],
+            ["Atlantis", 25.1306, 55.1169],
+            ["Dubai Marina", 25.0805, 55.1403],
+            ["JBR", 25.0780, 55.1336],
+            ["Jumeirah Beach Residence", 25.0780, 55.1336],
+            ["Jumeirah", 25.2048, 55.2708],
+            ["La Mer", 25.2289, 55.2655],
+            ["Kite Beach", 25.1565, 55.1881],
+            ["Dubai Creek", 25.2654, 55.3209],
+            ["Gold Souk", 25.2685, 55.2972],
+            ["Spice Souk", 25.2676, 55.2997],
+            ["Al Fahidi", 25.2637, 55.2972],
+            ["Museum of the Future", 25.2189, 55.2822],
+            ["Dubai Frame", 25.2350, 55.3000],
+            ["Miracle Garden", 25.0610, 55.2438],
+            ["Ski Dubai", 25.0816, 55.1719],
+            ["Global Village", 25.0686, 55.3088],
+            ["Dubai Opera", 25.1944, 55.2737],
+            ["Wild Wadi", 25.1408, 55.1875],
+            ["Aquaventure", 25.1294, 55.1175],
+            ["Dubai Aquarium", 25.1972, 55.2789],
+            ["Business Bay", 25.1857, 55.2649],
+            ["Downtown Dubai", 25.1950, 55.2744],
+            ["Al Barsha", 25.1124, 55.1990],
+            ["Deira", 25.2697, 55.3094],
+            ["Bur Dubai", 25.2582, 55.2925],
+            ["Dubai Hills", 25.1003, 55.2403],
+            ["Al Seef", 25.2611, 55.3008],
+            ["City Walk", 25.2055, 55.2604],
+            ["Dubai Design District", 25.1880, 55.2880],
+            ["Expo City", 24.9676, 55.1395],
+            ["Green Planet", 25.2056, 55.2611],
+            ["Dubai Marina Walk", 25.0772, 55.1408],
+            ["Al Mamzar", 25.3082, 55.3438],
+        ];
+
+        // Find DUBAI_PLACES entries mentioned in a piece of text.
+        // Case-insensitive substring match — deliberately simple so it's
+        // easy to verify and extend; no fuzzy matching or geocoding call.
+        function findPlacesInText(text) {
+            const lowered = text.toLowerCase();
+            return DUBAI_PLACES.filter(([name]) => lowered.includes(name.toLowerCase()));
+        }
+
+        // Render a Leaflet map for one day's activities into the given
+        // container element. Plots a pin per recognized place (in the
+        // order activities were listed) and connects them with a route
+        // line. Returns true if at least one place was plotted, false if
+        // there was nothing to show (caller can hide the toggle button).
+        function renderDayMap(container, activities) {
+            const matched = [];
+            activities.forEach(activity => {
+                const found = findPlacesInText(activity);
+                found.forEach(place => {
+                    // Avoid plotting the exact same place twice if it's
+                    // mentioned in more than one activity for the same day.
+                    if (!matched.some(m => m[0] === place[0])) {
+                        matched.push(place);
+                    }
+                });
+            });
+
+            if (matched.length === 0) {
+                return false;
+            }
+
+            // Center map on the average of matched coordinates.
+            const avgLat = matched.reduce((sum, m) => sum + m[1], 0) / matched.length;
+            const avgLng = matched.reduce((sum, m) => sum + m[2], 0) / matched.length;
+
+            const map = L.map(container, {
+                scrollWheelZoom: false,
+                attributionControl: true,
+            }).setView([avgLat, avgLng], matched.length > 1 ? 12 : 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 18,
+            }).addTo(map);
+
+            const latLngs = matched.map(([name, lat, lng]) => {
+                L.marker([lat, lng]).addTo(map).bindPopup(name);
+                return [lat, lng];
+            });
+
+            if (latLngs.length > 1) {
+                L.polyline(latLngs, { color: '#D4AF37', weight: 3, opacity: 0.8 }).addTo(map);
+                map.fitBounds(latLngs, { padding: [24, 24] });
+            }
+
+            return true;
+        }
+
+        // Toggle a single day-card's map open/closed. The map is only
+        // actually constructed the first time it's opened (lazy init) —
+        // Leaflet requires its container to be visible with real
+        // dimensions when initialized, which isn't true while display:none.
+        function toggleDayMap(dayIndex) {
+            const mapContainer = document.getElementById(`day-map-${dayIndex}`);
+            const button = document.getElementById(`day-map-toggle-${dayIndex}`);
+            const isVisible = mapContainer.classList.contains('visible');
+
+            if (isVisible) {
+                mapContainer.classList.remove('visible');
+                button.textContent = '🗺️ Show map';
+                return;
+            }
+
+            mapContainer.classList.add('visible');
+            button.textContent = '🗺️ Hide map';
+
+            if (!mapContainer.dataset.initialized) {
+                // Defer to next frame so the container has its visible
+                // dimensions before Leaflet measures it.
+                requestAnimationFrame(() => {
+                    const activities = JSON.parse(mapContainer.dataset.activities);
+                    renderDayMap(mapContainer, activities);
+                    mapContainer.dataset.initialized = 'true';
+                });
+            }
+        }
 
         function handleKey(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -625,6 +808,12 @@
 
             itinerary.days.forEach((day, idx) => {
                 const delay = idx * 0.15;
+                const hasMapData = day.activities.some(a => findPlacesInText(a).length > 0);
+                // JSON-encode then HTML-escape so activity text with quotes
+                // can't break out of the data-attribute it's stored in.
+                const activitiesAttr = JSON.stringify(day.activities)
+                    .replace(/"/g, '&quot;');
+
                 html += `
                 <div class="day-card" style="animation-delay:${delay}s">
                     <div class="day-card-header">
@@ -635,6 +824,11 @@
                     <ul class="day-activities">
                         ${day.activities.map(a => `<li>${a}</li>`).join('')}
                     </ul>
+                    ${hasMapData ? `
+                    <button class="day-map-toggle" id="day-map-toggle-${idx}"
+                        onclick="toggleDayMap(${idx})">🗺️ Show map</button>
+                    <div class="day-map" id="day-map-${idx}" data-activities="${activitiesAttr}"></div>
+                    ` : ''}
                 </div>`;
             });
 
